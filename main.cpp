@@ -20,6 +20,12 @@ typedef struct s_sum {
     int size;
 } sum;
 
+typedef struct s_thrWithID {
+    unsigned ID;
+    unsigned size;
+    pthread_mutex_t *verroux;
+} thrWithID;
+
 void * DisplayLoop (void * p){
     pthread_t moi = pthread_self();
     for (unsigned i (0); i < 10; ++i)
@@ -56,16 +62,6 @@ void Question4 () {
     pthread_join(t1, NULL);
     pthread_join(t2, NULL);
 }
-
-
-
-
-
-
-
-
-
-
 
 void * Addition (void * p){
 
@@ -166,6 +162,64 @@ void Exo2MainThread2(unsigned n){
     cout << "Sum : " << SumExo2 << endl;
 }
 
+unsigned TachePred;
+
+void * Tache(void * p){
+
+    pthread_mutex_unlock(&((thrWithID*)p)->verroux[((thrWithID*)p)->ID]);
+
+    cout << "thread " << ((thrWithID*)p)->ID << " : Lock " << ((thrWithID*)p)->ID << " is locked" << endl;
+    pthread_mutex_lock(&((thrWithID*)p)->verroux[((thrWithID*)p)->ID]);
+
+
+    cout << "thread " << ((thrWithID*)p)->ID << " : computing" << endl;
+
+    unsigned Calc = 0;
+
+    while (Calc++ != 10000000){}
+
+    pthread_mutex_unlock(&((thrWithID*)p)->verroux[((thrWithID*)p)->ID]);
+    cout << "thread " << ((thrWithID*)p)->ID << " : Lock " << ((thrWithID*)p)->ID << " is unlocked" << endl;
+
+    cout << "thread " << ((thrWithID*)p)->ID << " : waiting for other thread" << endl;
+
+    for (unsigned i (0); i < ((thrWithID*)p)->size ; ++i)
+        if (i != ((thrWithID*)p)->ID){
+            cout << "thread " << ((thrWithID*)p)->ID << " : Lock " << i << " is locked" << endl;
+            pthread_mutex_lock(&((thrWithID*)p)->verroux[i]);
+            pthread_mutex_unlock(&((thrWithID*)p)->verroux[i]);
+            cout << "thread " << ((thrWithID*)p)->ID << " : Lock " << i << " is unlocked" << endl;
+        }
+
+
+    cout << "thread " << ((thrWithID*)p)->ID << " : wait ended" << endl;
+}
+
+void Exo3MainThread (unsigned n){
+    thrWithID threads[n];
+    pthread_t tache[n];
+    pthread_mutex_t verroux[n];
+
+    for (unsigned i (0); i < n; ++i){
+        verroux[n] = PTHREAD_MUTEX_INITIALIZER;
+    }
+
+    for (unsigned i (0); i < n; ++i){
+        threads[i].ID = i;
+        threads[i].size = n;
+        threads[i].verroux = verroux;
+    }
+
+
+    for (unsigned i (0); i < n; ++i)
+        if (pthread_create(&tache[i], NULL, Tache, &threads[i]) != 0)
+            cout << "creation error !" << endl;
+
+    for (unsigned i (0); i < n ; ++i)
+        pthread_join(tache[i], NULL);
+
+}
+
 
 int main(){
     srand(time(NULL));
@@ -182,17 +236,17 @@ int main(){
 
     Question4();
 
-*/
+
     cout << "EXO 2" << endl;
 
-    cout << "Question 3 :  " << endl;
-    cout << "Taille vecteur : ";
+    cout << "Question 3 :  " << endl;*/
+    cout << "Nombre de taches : ";
 
     unsigned n;
     cin >> n;
 
 
-    Exo2MainThread2(n);
+    Exo3MainThread(n);
 
 
 
