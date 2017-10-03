@@ -6,7 +6,9 @@
 
 using namespace std;
 
-pthread_mutex_t verrou = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t Verrou = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t Condition = PTHREAD_COND_INITIALIZER;
+unsigned SumCom = 0;
 
 unsigned SumExo2 = 0;
 
@@ -20,11 +22,18 @@ typedef struct s_sum {
     int size;
 } sum;
 
+typedef struct s_sync {
+    int ID;
+    int size;
+} sync;
+
 typedef struct s_thrWithID {
     unsigned ID;
     unsigned size;
     pthread_mutex_t *verroux;
 } thrWithID;
+
+
 
 void * DisplayLoop (void * p){
     pthread_t moi = pthread_self();
@@ -68,12 +77,12 @@ void * Addition (void * p){
     int * res = (int *) malloc(sizeof(int));
     *res = 0;
 
-    pthread_mutex_lock(&verrou);
+    pthread_mutex_lock(&Verrou);
 
     for (unsigned i (0); i < ((sum *)p)->size; i++)
         *res += ((sum *)p)->all[i];
 
-    pthread_mutex_unlock(&verrou);
+    pthread_mutex_unlock(&Verrou);
 
     pthread_exit(res);
 
@@ -107,7 +116,7 @@ void Exo2MainThread(unsigned n){
         v[i].v2 = rand() % 11;
     }
 
-    pthread_mutex_lock(&verrou);
+    pthread_mutex_lock(&Verrou);
 
     for (unsigned i (0); i < n; ++i) {
         if (pthread_create(&mult[i], NULL, Multiplication, &v[i]) != 0) cout << "creation error !" << endl;
@@ -120,7 +129,7 @@ void Exo2MainThread(unsigned n){
         res.all[i] = *ptr;
     }
 
-    pthread_mutex_unlock(&verrou);
+    pthread_mutex_unlock(&Verrou);
 
     pthread_join(add, (void **) &ptr);
     Sum = *ptr;
@@ -134,12 +143,12 @@ void * MultiplicationQ4 (void * p){
 
     *res = ((vect*)p)->v1 * ((vect*)p)->v2;
 
-    pthread_mutex_lock(&verrou);
+    pthread_mutex_lock(&Verrou);
 
     cout << "adding " << *res << " to sum" << endl;
     SumExo2 += *res;
 
-    pthread_mutex_unlock(&verrou);
+    pthread_mutex_unlock(&Verrou);
 }
 
 void Exo2MainThread2(unsigned n){
@@ -220,6 +229,103 @@ void Exo3MainThread (unsigned n){
 
 }
 
+void * TacheCond(void * p){
+
+    cout << "thread " << ((sync*)p)->ID << " : start" << endl;
+
+    unsigned Calc = 0;
+
+    while (Calc++ != 10){cout << "thread " << ((sync*)p)->ID << " : Computing at " << Calc << endl; }
+
+    pthread_mutex_lock(&Verrou);
+    SumCom++;
+    while (SumCom < ((sync*)p)->size){
+        pthread_cond_wait(&Condition, &Verrou);
+        cout << "thread " << ((sync*)p)->ID << " : wait" << endl;
+    }
+
+    cout << "thread " << ((sync*)p)->ID << " : wait ended" << endl;
+
+    pthread_mutex_unlock(&Verrou);
+
+    pthread_cond_broadcast(&Condition);
+}
+
+void Exo3MainThreadCond (unsigned n){
+
+    pthread_t threads [n];
+
+    sync Number[n];
+
+    for (unsigned i (0); i < n; ++i){
+        Number[i].ID = i;
+        Number[i].size = n;
+        if (pthread_create(&threads[i], NULL, TacheCond, &Number[i]) != 0)
+            cout << "creation error !" << endl;
+    }
+
+    for (unsigned i (0); i < n ; ++i)
+        pthread_join(threads[i], NULL);
+
+}
+
+int * dCommun;
+
+void * Activite (void * p) {
+
+    cout << "thread " << ((sync*)p)->ID << " : start" << endl;
+
+    for (unsigned i (0); i < ((sync *)p)->size; ++i) {
+
+        unsigned Calc = 0;
+
+        pthread_mutex_lock(&Verrou);
+        if (((sync*)p)->ID != ((sync*)p)->size - 1) {
+            while (dCommun[((sync*)p)->ID + 1] <= i) {
+                pthread_mutex_unlock(&Verrou);
+                pthread_mutex_lock(&Verrou);
+            }
+
+            dCommun[((sync*)p)->ID] = i;
+
+            pthread_mutex_unlock(&Verrou);
+
+            while (Calc++ != 10){cout << "thread " << ((sync*)p)->ID << " : Working on " << i << endl; }
+            continue;
+        }
+        dCommun[((sync*)p)->ID] = i;
+
+        pthread_mutex_unlock(&Verrou);
+
+        while (Calc++ != 10){cout << "thread " << ((sync*)p)->ID << " : Working on " << i << endl; }
+    }
+
+    dCommun[((sync*)p)->ID] = ((sync*)p)->size;
+
+}
+
+void Exo4MainThreadCond (unsigned n) {
+     pthread_t threads [n];
+
+     dCommun = (int *) malloc(sizeof(int) * n);
+
+     sync Number[n];
+
+     for (unsigned i (0); i < n; ++i){
+         dCommun[i] = -1;
+     }
+
+     for (unsigned i (0); i < n; ++i){
+         Number[i].ID = i;
+         Number[i].size = n;
+         if (pthread_create(&threads[i], NULL, Activite, &Number[i]) != 0)
+             cout << "creation error !" << endl;
+     }
+
+     for (unsigned i (0); i < n ; ++i)
+         pthread_join(threads[i], NULL);
+
+}
 
 int main(){
     srand(time(NULL));
@@ -246,7 +352,7 @@ int main(){
     cin >> n;
 
 
-    Exo3MainThread(n);
+    Exo4MainThreadCond(n);
 
 
 
