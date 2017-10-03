@@ -271,7 +271,7 @@ void Exo3MainThreadCond (unsigned n){
 
 int * dCommun;
 
-void * Activite (void * p) {
+void * ActiviteM (void * p) {
 
     cout << "thread " << ((sync*)p)->ID << " : start" << endl;
 
@@ -304,7 +304,7 @@ void * Activite (void * p) {
 
 }
 
-void Exo4MainThreadCond (unsigned n) {
+void Exo4MainThread (unsigned n) {
      pthread_t threads [n];
 
      dCommun = (int *) malloc(sizeof(int) * n);
@@ -312,6 +312,99 @@ void Exo4MainThreadCond (unsigned n) {
      sync Number[n];
 
      for (unsigned i (0); i < n; ++i){
+         dCommun[i] = -1;
+     }
+
+     for (unsigned i (0); i < n; ++i){
+         Number[i].ID = i;
+         Number[i].size = n;
+         if (pthread_create(&threads[i], NULL, ActiviteM, &Number[i]) != 0)
+             cout << "creation error !" << endl;
+     }
+
+     for (unsigned i (0); i < n ; ++i)
+         pthread_join(threads[i], NULL);
+
+}
+
+
+void * Activite (void * p) {
+
+    cout << "thread " << ((sync*)p)->ID << " : start" << endl;
+
+    for (int i (0); i < ((sync *)p)->size; ++i) {
+
+        unsigned Calc = 0;
+        unsigned Random = rand() % 10000000000;
+
+        pthread_mutex_lock(&Verrou);
+        if (((sync*)p)->ID != ((sync*)p)->size - 1) {
+            for (int j (((sync*)p)->ID + 1) ; j < ((sync*)p)->size; ++j){
+                while (dCommun[j] <= i) {
+                    //cout << "thread " << ((sync*)p)->ID << " : " << dCommun[j] << endl;
+                    cout << "thread " << ((sync*)p)->ID << " : waiting for zone " << i << endl;
+                    pthread_cond_wait(&Condition, &Verrou);
+                }
+            }
+
+            cout << "thread " << ((sync*)p)->ID << " : wait ended" << endl;
+
+            //cout << "thread " << ((sync*)p)->ID << " : start working on zone "  << i << endl;
+
+            //cout << "from thread " << ((sync*)p)->ID << " next thread is in zone " << dCommun[((sync*)p)->ID + 1] << endl;
+
+
+            dCommun[((sync*)p)->ID] = i;
+
+            pthread_mutex_unlock(&Verrou);
+            pthread_cond_broadcast(&Condition);
+
+            cout << "thread " << ((sync*)p)->ID << " : WAKE UP EVERYONE !!!!" << endl;
+
+
+            cout << "thread " << ((sync*)p)->ID << " : Working on zone " << i << endl;
+            while (Calc++ != Random){if (Calc % 1000000000 == 0)  cout << "thread " << ((sync*)p)->ID << " : Working on zone " << i << "(" << Calc << ")" << endl;}
+            cout << "thread " << ((sync*)p)->ID << " : Work ended on zone " << i << endl;
+
+
+            continue;
+        }
+
+         dCommun[((sync*)p)->ID] = i;
+
+        pthread_mutex_unlock(&Verrou);
+        pthread_cond_broadcast(&Condition);
+
+        cout << "thread " << ((sync*)p)->ID << " : WAKE UP EVERYONE !!!!" << endl;
+
+        cout << "thread " << ((sync*)p)->ID << " : Working on zone " << i << endl;
+        while (Calc++ != Random){if (Calc % 1000000000 == 0)  cout << "thread " << ((sync*)p)->ID << " : Working on zone " << i << "(" << Calc << ")" << endl;}
+
+
+        cout << "thread " << ((sync*)p)->ID << " : Work ended on zone " << i << endl;
+
+
+
+
+
+    }
+
+    dCommun[((sync*)p)->ID] = ((sync*)p)->size;
+
+    pthread_cond_signal(&Condition);
+
+}
+
+void Exo4MainThreadCond (unsigned n) {
+     pthread_t threads [n];
+
+     dCommun = (int *) malloc(sizeof(int) * n);
+
+     sync Number[n];
+
+      dCommun[n-1] = 0;
+
+     for (unsigned i (0); i < n - 1; ++i){
          dCommun[i] = -1;
      }
 
